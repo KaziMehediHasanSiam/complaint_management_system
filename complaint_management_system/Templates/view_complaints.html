@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}View Complaints - Complaint System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>Complaints</h2>
+            <a href="{{ url_for('submit_complaint') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> New Complaint
+            </a>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-body">
+                {% if complaints %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Title</th>
+                                <th>Category</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                {% if current_user.role in ['admin', 'staff'] %}
+                                <th>Submitted By</th>
+                                {% endif %}
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for complaint in complaints %}
+                            <tr>
+                                <td>{{ complaint.id }}</td>
+                                <td>
+                                    <a href="{{ url_for('complaint_detail', complaint_id=complaint.id) }}">
+                                        {{ complaint.title }}
+                                    </a>
+                                </td>
+                                <td>{{ complaint.category }}</td>
+                                <td>
+                                    <span class="badge bg-{% if complaint.priority == 'High' %}danger{% elif complaint.priority == 'Medium' %}warning{% elif complaint.priority == 'Critical' %}dark{% else %}info{% endif %}">
+                                        {{ complaint.priority }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{% if complaint.status == 'Open' %}primary{% elif complaint.status == 'In Progress' %}warning{% else %}success{% endif %}">
+                                        {{ complaint.status }}
+                                    </span>
+                                </td>
+                                {% if current_user.role in ['admin', 'staff'] %}
+                                <td>{{ complaint.author.username }}</td>
+                                {% endif %}
+                                <td>{{ complaint.created_at.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    <a href="{{ url_for('complaint_detail', complaint_id=complaint.id) }}" 
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if current_user.role in ['admin', 'staff'] %}
+                                    <a href="{{ url_for('respond_complaint', complaint_id=complaint.id) }}" 
+                                       class="btn btn-sm btn-outline-success">
+                                        <i class="fas fa-reply"></i>
+                                    </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                    <h5>No complaints found</h5>
+                    <p class="text-muted">You haven't submitted any complaints yet.</p>
+                    <a href="{{ url_for('submit_complaint') }}" class="btn btn-primary">
+                        Submit Your First Complaint
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

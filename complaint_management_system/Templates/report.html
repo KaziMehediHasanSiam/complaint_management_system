@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - Complaint System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2>Complaint Reports</h2>
+        <p class="text-muted">Analytics and statistics for complaints</p>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Complaints by Category</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group">
+                    {% for category, count in category_stats %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ category }}
+                        <span class="badge bg-primary rounded-pill">{{ count }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Complaints by Status</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group">
+                    {% for status, count in status_stats %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ status }}
+                        <span class="badge bg-{% if status == 'Open' %}primary{% elif status == 'In Progress' %}warning{% else %}success{% endif %} rounded-pill">
+                            {{ count }}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Complaints by Priority</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group">
+                    {% for priority, count in priority_stats %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ priority }}
+                        <span class="badge bg-{% if priority == 'High' %}danger{% elif priority == 'Medium' %}warning{% elif priority == 'Critical' %}dark{% else %}info{% endif %} rounded-pill">
+                            {{ count }}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Export Data</h5>
+            </div>
+            <div class="card-body">
+                <p>Export complaint data for further analysis:</p>
+                <a href="{{ url_for('api_complaints') }}" class="btn btn-outline-primary" target="_blank">
+                    <i class="fas fa-download"></i> Export as JSON
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

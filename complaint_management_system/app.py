@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+import re
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -13,6 +14,11 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
+
+# Global Regex & Constants for Validation
+USERNAME_RE = re.compile(r'^(?=.*[A-Za-z])[A-Za-z0-9_.]{3,20}$')
+EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+COMMON_PASSWORDS = {'password', 'password1', '12345678', 'qwerty123', 'admin123', 'iloveyou'}
 
 # Database Models
 class User(UserMixin, db.Model):
@@ -54,6 +60,41 @@ class Response(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+def username_taken(name):
+    return User.query.filter(db.func.lower(User.username) == name.lower()).first() is not None
+
+def validate_registration(username, email, password, confirm):
+    errors = []
+
+    if not USERNAME_RE.match(username):
+        errors.append('Username must be 3-20 characters (letters, numbers, _ or .) and include at least one letter.')
+    elif username_taken(username):
+        errors.append('This username is already taken. Please choose another one.')
+
+    if not EMAIL_RE.match(email):
+        errors.append('Please enter a valid email address.')
+    elif User.query.filter(db.func.lower(User.email) == email.lower()).first():
+        errors.append('An account with this email already exists.')
+
+    if len(password) < 8:
+        errors.append('Password must be at least 8 characters.')
+    if not re.search(r'[A-Z]', password):
+        errors.append('Password needs an uppercase letter.')
+    if not re.search(r'[a-z]', password):
+        errors.append('Password needs a lowercase letter.')
+    if not re.search(r'[0-9]', password):
+        errors.append('Password needs a number.')
+    if not re.search(r'[^A-Za-z0-9]', password):
+        errors.append('Password needs a symbol (for example ! @ # $).')
+    if username and username.lower() in password.lower():
+        errors.append('Password must not contain your username.')
+    if password.lower() in COMMON_PASSWORDS:
+        errors.append('This password is too common.')
+    if password != confirm:
+        errors.append('Passwords do not match.')
+
+    return errors
+
 # Routes
 @app.route('/')
 def index():
@@ -69,7 +110,7 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        user = User.query.filter_by(username=username).first()
+        user = User.query.filter(db.func.lower(User.username) == (username or '').lower()).first()
         
         if user and user.check_password(password):
             login_user(user)
@@ -84,52 +125,60 @@ def login():
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
-    
+
     if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        role = request.form.get('role', 'user')
-        
-        if User.query.filter_by(username=username).first():
-            flash('Username already exists', 'danger')
-            return render_template('login.html', register=True)
-        
-        if User.query.filter_by(email=email).first():
-            flash('Email already exists', 'danger')
-            return render_template('login.html', register=True)
-        
-        user = User(username=username, email=email, role=role)
+        username = (request.form.get('username') or '').strip()
+        email = (request.form.get('email') or '').strip()
+        password = request.form.get('password') or ''
+        confirm = request.form.get('confirm') or ''
+
+        errors = validate_registration(username, email, password, confirm)
+        if errors:
+            for message in errors:
+                flash(message, 'danger')
+            return render_template('login.html', register=True, form=request.form)
+
+        user = User(username=username, email=email, role='user')
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
-        
+
         flash('Registration successful! Please login.', 'success')
         return redirect(url_for('login'))
-    
+
     return render_template('login.html', register=True)
+
+
+@app.route('/api/check_username')
+def check_username():
+    name = (request.args.get('u') or '').strip()
+    if not USERNAME_RE.match(name):
+        return jsonify(valid=False, available=False,
+                       message='3-20 characters, letters/numbers/_/. only, at least one letter')
+    if username_taken(name):
+        return jsonify(valid=True, available=False, message='Username is already taken')
+    return jsonify(valid=True, available=True, message='Username is available')
+
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    # Statistics for dashboard
     total_complaints = Complaint.query.count()
     user_complaints = Complaint.query.filter_by(user_id=current_user.id).count()
     open_complaints = Complaint.query.filter_by(status='Open').count()
     resolved_complaints = Complaint.query.filter_by(status='Resolved').count()
     
-    # Recent complaints
     if current_user.role in ['admin', 'staff']:
         recent_complaints = Complaint.query.order_by(Complaint.created_at.desc()).limit(5).all()
     else:
         recent_complaints = Complaint.query.filter_by(user_id=current_user.id).order_by(Complaint.created_at.desc()).limit(5).all()
     
     return render_template('dashboard.html',
-                         total_complaints=total_complaints,
-                         user_complaints=user_complaints,
-                         open_complaints=open_complaints,
-                         resolved_complaints=resolved_complaints,
-                         recent_complaints=recent_complaints)
+                           total_complaints=total_complaints,
+                           user_complaints=user_complaints,
+                           open_complaints=open_complaints,
+                           resolved_complaints=resolved_complaints,
+                           recent_complaints=recent_complaints)
 
 @app.route('/submit_complaint', methods=['GET', 'POST'])
 @login_required
@@ -171,7 +220,6 @@ def view_complaints():
 def complaint_detail(complaint_id):
     complaint = Complaint.query.get_or_404(complaint_id)
     
-    # Check if user has permission to view this complaint
     if current_user.role not in ['admin', 'staff'] and complaint.user_id != current_user.id:
         flash('You do not have permission to view this complaint', 'danger')
         return redirect(url_for('view_complaints'))
@@ -215,28 +263,25 @@ def report():
         flash('You do not have permission to view reports', 'danger')
         return redirect(url_for('dashboard'))
     
-    # Complaint statistics by category
     category_stats = db.session.query(
         Complaint.category,
         db.func.count(Complaint.id)
     ).group_by(Complaint.category).all()
     
-    # Complaint statistics by status
     status_stats = db.session.query(
         Complaint.status,
         db.func.count(Complaint.id)
     ).group_by(Complaint.status).all()
     
-    # Complaint statistics by priority
     priority_stats = db.session.query(
         Complaint.priority,
         db.func.count(Complaint.id)
     ).group_by(Complaint.priority).all()
     
     return render_template('report.html',
-                         category_stats=category_stats,
-                         status_stats=status_stats,
-                         priority_stats=priority_stats)
+                           category_stats=category_stats,
+                           status_stats=status_stats,
+                           priority_stats=priority_stats)
 
 @app.route('/logout')
 @login_required
@@ -278,11 +323,14 @@ def internal_error(error):
     db.session.rollback()
     return render_template('500.html'), 500
 
+@app.context_processor
+def inject_now():
+    return {'now': datetime.utcnow()}
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         
-        # Create admin user if not exists
         if not User.query.filter_by(username='admin').first():
             admin = User(username='admin', email='admin@example.com', role='admin')
             admin.set_password('admin123')

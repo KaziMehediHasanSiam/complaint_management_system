@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import priority_badge, status_badge %}
 
 {% block title %}View Complaints - Complaint System{% endblock %}
 
@@ -42,14 +43,10 @@
                                 </td>
                                 <td>{{ complaint.category }}</td>
                                 <td>
-                                    <span class="badge bg-{% if complaint.priority == 'High' %}danger{% elif complaint.priority == 'Medium' %}warning{% elif complaint.priority == 'Critical' %}dark{% else %}info{% endif %}">
-                                        {{ complaint.priority }}
-                                    </span>
+                                    {{ priority_badge(complaint.priority) }}
                                 </td>
                                 <td>
-                                    <span class="badge bg-{% if complaint.status == 'Open' %}primary{% elif complaint.status == 'In Progress' %}warning{% else %}success{% endif %}">
-                                        {{ complaint.status }}
-                                    </span>
+                                    {{ status_badge(complaint.status) }}
                                 </td>
                                 {% if current_user.role in ['admin', 'staff'] %}
                                 <td>{{ complaint.author.username }}</td>

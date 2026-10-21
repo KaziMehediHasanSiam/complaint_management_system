@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import status_badge %}
 
 {% block title %}Complaint #{{ complaint.id }} - Complaint System{% endblock %}
 
@@ -45,22 +46,28 @@
                     </div>
                 </div>
                 
-                {% if complaint.responses %}
+                <!-- Timeline Section for Responses & Status -->
                 <div class="mt-4">
-                    <h6>Responses:</h6>
-                    {% for response in complaint.responses %}
-                    <div class="card mt-2">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between">
-                                <strong>{{ response.staff.username }} (Staff)</strong>
-                                <small class="text-muted">{{ response.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
-                            </div>
-                            <p class="mt-2 mb-0">{{ response.message }}</p>
-                        </div>
-                    </div>
-                    {% endfor %}
+                    <h6>Activity Timeline:</h6>
+                    <ol class="timeline mt-3">
+                        <li>
+                            <span class="dot"></span>
+                            <b>Complaint submitted</b><br>
+                            <small>{{ complaint.author.username }} · {{ complaint.created_at.strftime('%d %b %Y, %I:%M %p') }}</small>
+                        </li>
+                        {% for r in complaint.responses %}
+                        <li>
+                            <span class="dot brand"></span>
+                            <b>{{ r.staff.username }}</b> <small>replied · {{ r.created_at.strftime('%d %b %Y, %I:%M %p') }}</small>
+                            <div class="bubble">{{ r.message }}</div>
+                        </li>
+                        {% endfor %}
+                        <li>
+                            <span class="dot {{ 'brand' if complaint.status in ['Resolved','Closed'] }}"></span>
+                            <b>Status:</b> {{ status_badge(complaint.status) }}
+                        </li>
+                    </ol>
                 </div>
-                {% endif %}
                 
                 <div class="mt-4">
                     {% if current_user.role in ['admin', 'staff'] %}

@@ -1,78 +1,31 @@
 {% extends "base.html" %}
+{% from "_macros.html" import priority_badge, status_badge %}
 
 {% block title %}Dashboard - Complaint System{% endblock %}
-
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h2>Dashboard</h2>
-        <p class="text-muted">Welcome back, {{ current_user.username }}!</p>
-    </div>
+<div class="page-head">
+    <h1>Welcome back, {{ current_user.username }}</h1>
+    <p class="text-muted mb-0">Summary of today's complaints</p>
 </div>
 
-<div class="row mt-4">
-    <div class="col-md-3">
-        <div class="card text-white bg-primary">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h4>{{ total_complaints }}</h4>
-                        <p>Total Complaints</p>
-                    </div>
-                    <div class="align-self-center">
-                        <i class="fas fa-list fa-2x"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-success">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h4>{{ user_complaints }}</h4>
-                        <p>My Complaints</p>
-                    </div>
-                    <div class="align-self-center">
-                        <i class="fas fa-user fa-2x"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-warning">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h4>{{ open_complaints }}</h4>
-                        <p>Open Complaints</p>
-                    </div>
-                    <div class="align-self-center">
-                        <i class="fas fa-clock fa-2x"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-white bg-info">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h4>{{ resolved_complaints }}</h4>
-                        <p>Resolved Complaints</p>
-                    </div>
-                    <div class="align-self-center">
-                        <i class="fas fa-check fa-2x"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="row g-3">
+    <div class="col-6 col-lg-3"><div class="stat stat-blue">
+        <div class="stat-icon"><i class="fas fa-list"></i></div>
+        <div class="stat-num">{{ total_complaints }}</div><div class="stat-label">Total Complaints</div>
+    </div></div>
+    <div class="col-6 col-lg-3"><div class="stat stat-teal">
+        <div class="stat-icon"><i class="fas fa-user"></i></div>
+        <div class="stat-num">{{ user_complaints }}</div><div class="stat-label">My Complaints</div>
+    </div></div>
+    <div class="col-6 col-lg-3"><div class="stat stat-amber">
+        <div class="stat-icon"><i class="fas fa-clock"></i></div>
+        <div class="stat-num">{{ open_complaints }}</div><div class="stat-label">Open</div>
+    </div></div>
+    <div class="col-6 col-lg-3"><div class="stat stat-green">
+        <div class="stat-icon"><i class="fas fa-check"></i></div>
+        <div class="stat-num">{{ resolved_complaints }}</div><div class="stat-label">Resolved</div>
+    </div></div>
 </div>
-
 <div class="row mt-4">
     <div class="col-12">
         <div class="card">
@@ -104,14 +57,10 @@
                                 </td>
                                 <td>{{ complaint.category }}</td>
                                 <td>
-                                    <span class="badge bg-{% if complaint.priority == 'High' %}danger{% elif complaint.priority == 'Medium' %}warning{% else %}info{% endif %}">
-                                        {{ complaint.priority }}
-                                    </span>
+                                    {{ priority_badge(complaint.priority) }}
                                 </td>
                                 <td>
-                                    <span class="badge bg-{% if complaint.status == 'Open' %}primary{% elif complaint.status == 'In Progress' %}warning{% else %}success{% endif %}">
-                                        {{ complaint.status }}
-                                    </span>
+                                    {{ status_badge(complaint.status) }}
                                 </td>
                                 <td>{{ complaint.created_at.strftime('%Y-%m-%d') }}</td>
                             </tr>

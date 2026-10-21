@@ -1,0 +1,7 @@
+{% macro priority_badge(p) %}
+<span class="pill pill-{{ p|lower }}">{{ p }}</span>
+{% endmacro %}
+
+{% macro status_badge(s) %}
+<span class="pill pill-{{ s|lower|replace(' ','-') }}">{{ s }}</span>
+{% endmacro %}

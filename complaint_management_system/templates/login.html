@@ -1,74 +1,239 @@
 {% extends "base.html" %}
 
-{% block title %}Login - Complaint System{% endblock %}
+{% block title %}{% if register %}Register{% else %}Login{% endif %} - Complaint Desk{% endblock %}
 
-{% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h4 class="text-center">
-                    {% if register %}Register{% else %}Login{% endif %}
-                </h4>
-            </div>
-            <div class="card-body">
-                {% if register %}
-                <form method="POST">
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
-                        <input type="text" class="form-control" id="username" name="username" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email</label>
-                        <input type="email" class="form-control" id="email" name="email" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="role" class="form-label">Role</label>
-                        <select class="form-control" id="role" name="role">
-                            <option value="user">User</option>
-                            <option value="staff">Staff</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Register</button>
-                </form>
-                <div class="text-center mt-3">
-                    <p>Already have an account? <a href="{{ url_for('login') }}">Login here</a></p>
-                </div>
-                {% else %}
-                <form method="POST">
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
-                        <input type="text" class="form-control" id="username" name="username" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Login</button>
-                </form>
-                <div class="text-center mt-3">
-                    <p>Don't have an account? <a href="{{ url_for('register') }}">Register here</a></p>
-                </div>
-                {% endif %}
-            </div>
+{% block content_guest %}
+<noscript><style>.login-form{opacity:1!important;visibility:visible!important;transform:none!important}</style></noscript>
+
+<div class="auth">
+    <div class="auth-side">
+        <div class="brand" style="color:#fff">
+            <span class="brand-mark" style="background:rgba(255,255,255,.18)"><i class="fas fa-comments"></i></span>
+            Complaint Desk
         </div>
-        
-        {% if not register %}
-        <div class="card mt-3">
-            <div class="card-body">
-                <h6>Demo Accounts:</h6>
-                <ul class="list-unstyled">
-                    <li><strong>Admin:</strong> admin / admin123</li>
-                    <li><strong>Staff:</strong> Register as staff</li>
-                    <li><strong>User:</strong> Register as user</li>
-                </ul>
-            </div>
+        <div>
+            <h1>Your voice will be heard.<br>Solutions will be tracked.</h1>
+            <p>Submit a complaint, view status, and get answers from one place.</p>
         </div>
-        {% endif %}
+        <small style="opacity:.7">&copy; {{ now.year }} Complaint Desk</small>
+    </div>
+
+    <div class="auth-form lamp-panel" id="lampPanel">
+        <div class="lamp-stage">
+            <svg class="lamp-svg" viewBox="0 0 200 290" xmlns="http://www.w3.org/2000/svg">
+                <ellipse class="lamp-glow" cx="100" cy="105" rx="70" ry="38"/>
+                <rect class="lamp-base" x="94" y="100" width="12" height="150" rx="6"/>
+                <rect class="lamp-base" x="62" y="244" width="76" height="12" rx="6"/>
+                <path class="lamp-shade" d="M34 100 C34 44,166 44,166 100 C166 114,34 114,34 100 Z"/>
+                <line class="cord-line" x1="140" y1="104" x2="140" y2="165"/>
+                <circle class="cord-bead" cx="140" cy="175" r="7"/>
+                <circle class="cord-hit" cx="140" cy="175" r="26" fill="transparent"
+                        tabindex="0" role="button" aria-label="Pull the cord to turn the light on or off"/>
+            </svg>
+            <p class="lamp-hint">Pull the cord to light up the login</p>
+        </div>
+
+        <div class="auth-box login-form">
+            <h2 class="mb-1">{% if register %}Create account{% else %}Welcome{% endif %}</h2>
+            <p class="text-muted mb-4">{% if register %}It only takes a few seconds.{% else %}Login to continue.{% endif %}</p>
+
+            {% if register %}
+            <form method="POST" id="registerForm">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" name="username" maxlength="20"
+                           value="{{ form.get('username', '') if form else '' }}" autocomplete="username" required>
+                    <div id="usernameMsg" class="field-msg"></div>
+                </div>
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" class="form-control" id="email" name="email"
+                           value="{{ form.get('email', '') if form else '' }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" name="password" autocomplete="new-password" required>
+                    <div class="strength"><span></span></div>
+                    <ul class="rules" id="rules">
+                        <li data-rule="len">8+ characters</li>
+                        <li data-rule="upper">Uppercase letter</li>
+                        <li data-rule="lower">Lowercase letter</li>
+                        <li data-rule="num">A number</li>
+                        <li data-rule="sym">A symbol (! @ # $)</li>
+                        <li data-rule="name">No username in it</li>
+                    </ul>
+                </div>
+                <div class="mb-4">
+                    <label for="confirm" class="form-label">Confirm password</label>
+                    <input type="password" class="form-control" id="confirm" name="confirm" autocomplete="new-password" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 py-2" id="registerBtn" disabled>Register</button>
+            </form>
+            <p class="text-center text-muted mt-4 mb-0">Already have an account? <a href="{{ url_for('login') }}">Login</a></p>
+            {% else %}
+            <form method="POST">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" name="username" required>
+                </div>
+                <div class="mb-4">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 py-2">Login</button>
+            </form>
+            <p class="text-center text-muted mt-4 mb-0">Don't have an account? <a href="{{ url_for('register') }}">Register</a></p>
+            {% endif %}
+        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var panel = document.getElementById('lampPanel');
+    if (!panel) return;
+    var svg = panel.querySelector('.lamp-svg');
+    var hit = panel.querySelector('.cord-hit');
+    var bead = panel.querySelector('.cord-bead');
+    var line = panel.querySelector('.cord-line');
+    var BASE = 175, MAX = 40, PULL = 22;
+    var on = false, startY = 0, dy = 0, dragging = false, moved = false;
+
+    function setCord(v) {
+        dy = v;
+        bead.setAttribute('cy', BASE + v);
+        hit.setAttribute('cy', BASE + v);
+        line.setAttribute('y2', 165 + v);
+    }
+    function springBack() {
+        var from = dy, t0 = performance.now();
+        (function step(t) {
+            var k = Math.min((t - t0) / 240, 1), e = 1 - Math.pow(1 - k, 3);
+            setCord(from * (1 - e));
+            if (k < 1) requestAnimationFrame(step);
+        })(t0);
+    }
+    function setLamp(value, focusForm) {
+        on = value;
+        panel.classList.toggle('on', on);
+        try { sessionStorage.setItem('lampOn', on ? '1' : '0'); } catch (e) {}
+        if (on && focusForm) setTimeout(function () {
+            var u = document.getElementById('username');
+            if (u) u.focus({ preventScroll: true });
+        }, 500);
+    }
+    function scale() { return svg.getBoundingClientRect().height / 290; }
+
+    hit.addEventListener('pointerdown', function (e) {
+        dragging = true; moved = false; startY = e.clientY;
+        hit.setPointerCapture(e.pointerId);
+        e.preventDefault();
+    });
+    hit.addEventListener('pointermove', function (e) {
+        if (!dragging) return;
+        var v = Math.max(0, Math.min(MAX, (e.clientY - startY) / scale()));
+        if (v > 3) moved = true;
+        setCord(v);
+    });
+    hit.addEventListener('pointerup', function () {
+        if (!dragging) return;
+        dragging = false;
+        if (!moved || dy >= PULL) setLamp(!on, true);
+        springBack();
+    });
+    hit.addEventListener('pointercancel', function () { dragging = false; springBack(); });
+    hit.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setCord(30); setLamp(!on, true); setTimeout(springBack, 120);
+        }
+    });
+
+    try { if (sessionStorage.getItem('lampOn') === '1') setLamp(true, false); } catch (e) {}
+})();
+</script>
+<script>
+    (function () {
+        var form = document.getElementById('registerForm');
+        if (!form) return;
+        var u = document.getElementById('username'), p = document.getElementById('password'),
+            c = document.getElementById('confirm'), msg = document.getElementById('usernameMsg'),
+            bar = document.querySelector('.strength span'), btn = document.getElementById('registerBtn');
+        var rules = {}, userOk = false, timer;
+        document.querySelectorAll('#rules li').forEach(function (li) { rules[li.dataset.rule] = li; });
+    
+        function checkPassword() {
+            var v = p.value, name = u.value.trim().toLowerCase();
+            var r = {
+                len: v.length >= 8, upper: /[A-Z]/.test(v), lower: /[a-z]/.test(v),
+                num: /[0-9]/.test(v), sym: /[^A-Za-z0-9]/.test(v),
+                name: v.length > 0 && !(name && v.toLowerCase().indexOf(name) !== -1)
+            };
+            var score = 0;
+            Object.keys(r).forEach(function (k) {
+                rules[k].classList.toggle('ok', r[k]);
+                if (r[k]) score++;
+            });
+            bar.style.width = (score / 6 * 100) + '%';
+            bar.style.background = score < 4 ? '#dc2626' : (score < 6 ? '#d97706' : '#16a34a');
+            return score === 6;
+        }
+        function update() {
+            var pwOk = checkPassword();
+            var match = p.value !== '' && c.value === p.value;
+            btn.disabled = !(userOk && pwOk && match);
+        }
+    
+        u.addEventListener('input', function () {
+            clearTimeout(timer);
+            userOk = false;
+            var name = u.value.trim();
+            if (!name) { msg.textContent = ''; msg.className = 'field-msg'; update(); return; }
+            msg.textContent = 'Checking...'; msg.className = 'field-msg';
+            timer = setTimeout(function () {
+                fetch('/api/check_username?u=' + encodeURIComponent(name))
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        if (u.value.trim() !== name) return;
+                        userOk = d.valid && d.available;
+                        msg.textContent = (userOk ? '✓ ' : '✕ ') + d.message;
+                        msg.className = 'field-msg ' + (userOk ? 'ok' : 'bad');
+                        update();
+                    })
+                    .catch(function () { msg.textContent = ''; userOk = true; update(); });
+            }, 350);
+            update();
+        });
+        p.addEventListener('input', update);
+        c.addEventListener('input', update);
+        if (u.value) u.dispatchEvent(new Event('input'));
+    })();
+    </script>
+    <script>
+        (function () {
+            document.querySelectorAll('input[type="password"]').forEach(function (input) {
+                var wrap = document.createElement('div');
+                wrap.className = 'pw-wrap';
+                input.parentNode.insertBefore(wrap, input);
+                wrap.appendChild(input);
+        
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'pw-toggle';
+                btn.setAttribute('aria-label', 'Show password');
+                btn.innerHTML = '<i class="fas fa-eye"></i>';
+                wrap.appendChild(btn);
+        
+                btn.addEventListener('click', function () {
+                    var show = input.type === 'password';
+                    input.type = show ? 'text' : 'password';
+                    btn.innerHTML = '<i class="fas ' + (show ? 'fa-eye-slash' : 'fa-eye') + '"></i>';
+                    btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+                    input.focus();
+                });
+            });
+        })();
+        </script>
 {% endblock %}

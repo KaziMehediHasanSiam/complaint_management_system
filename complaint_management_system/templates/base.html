@@ -4,76 +4,84 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Complaint Management System{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Hind+Siliguri:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+    <script>
+        try { var t = localStorage.getItem('theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch(e) {}
+    </script>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
-                <i class="fas fa-comments"></i> Complaint System
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                {% if current_user.is_authenticated %}
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('submit_complaint') }}">Submit Complaint</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('view_complaints') }}">View Complaints</a>
-                    </li>
-                    {% if current_user.role in ['admin', 'staff'] %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('report') }}">Reports</a>
-                    </li>
-                    {% endif %}
-                </ul>
-                <ul class="navbar-nav">
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-user"></i> {{ current_user.username }}
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><span class="dropdown-item-text">Role: {{ current_user.role|title }}</span></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
-                        </ul>
-                    </li>
-                </ul>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
-
-    <div class="container mt-4">
+    <div class="toasts">
         {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
         {% endwith %}
-
-        {% block content %}{% endblock %}
     </div>
 
-    <footer class="bg-light text-center text-muted py-3 mt-5">
-        <div class="container">
-            <p>&copy; 2024 Complaint Management System. All rights reserved.</p>
+    {% if current_user.is_authenticated %}
+    <div class="app">
+        <div class="topbar">
+            <a class="brand p-0" href="{{ url_for('dashboard') }}"><span class="brand-mark"><i class="fas fa-comments"></i></span> Complaint Desk</a>
+            <button class="btn btn-outline-primary btn-sm" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="fas fa-bars"></i></button>
         </div>
-    </footer>
+
+        <aside class="sidebar" id="sidebar">
+            <a class="brand" href="{{ url_for('dashboard') }}">
+                <span class="brand-mark"><i class="fas fa-comments"></i></span> Complaint Desk
+            </a>
+
+            <div class="nav-label">Menu</div>
+            <a class="nav-link-item {{ 'active' if request.endpoint == 'dashboard' }}" href="{{ url_for('dashboard') }}"><i class="fas fa-house"></i> Dashboard</a>
+            <a class="nav-link-item {{ 'active' if request.endpoint == 'submit_complaint' }}" href="{{ url_for('submit_complaint') }}"><i class="fas fa-pen-to-square"></i> Submit Complaint</a>
+            <a class="nav-link-item {{ 'active' if request.endpoint in ['view_complaints','complaint_detail','respond_complaint'] }}" href="{{ url_for('view_complaints') }}"><i class="fas fa-inbox"></i> Complaints</a>
+            {% if current_user.role in ['admin', 'staff'] %}
+            <div class="nav-label">Management</div>
+            <a class="nav-link-item {{ 'active' if request.endpoint == 'report' }}" href="{{ url_for('report') }}"><i class="fas fa-chart-pie"></i> Reports</a>
+            {% endif %}
+
+            <div class="sidebar-foot">
+                <div class="user-chip">
+                    <div class="avatar">{{ current_user.username[:1] }}</div>
+                    <div>
+                        <div class="fw-semibold">{{ current_user.username }}</div>
+                        <small class="text-muted">{{ current_user.role|title }}</small>
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <a class="btn btn-outline-primary btn-sm flex-fill" href="{{ url_for('logout') }}"><i class="fas fa-right-from-bracket"></i> Logout</a>
+                    <button class="btn btn-outline-primary btn-sm" id="themeBtn" title="Dark mode"><i class="fas fa-moon"></i></button>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main">
+            {% block content %}{% endblock %}
+            <footer class="text-center text-muted small mt-5">&copy; {{ now.year }} Complaint Desk</footer>
+        </main>
+    </div>
+    {% else %}
+        {% block auth %}{% block content_guest %}{% endblock %}{% endblock %}
+    {% endif %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        var btn = document.getElementById('themeBtn');
+        if (btn) btn.addEventListener('click', function () {
+            var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            try { localStorage.setItem('theme', next); } catch(e) {}
+        });
+        setTimeout(function () {
+            document.querySelectorAll('.toasts .alert').forEach(function (a) { bootstrap.Alert.getOrCreateInstance(a).close(); });
+        }, 5000);
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -20,9 +20,8 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
 
-# ---------------------------------------------------------------------------
 # Constants
-# ---------------------------------------------------------------------------
+
 USERNAME_RE = re.compile(r'^(?=.*[A-Za-z])[A-Za-z0-9_.]{3,20}$')
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 COMMON_PASSWORDS = {'password', 'password1', '12345678', 'qwerty123', 'admin123', 'iloveyou'}
@@ -47,9 +46,8 @@ def utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-# ---------------------------------------------------------------------------
 # Database models
-# ---------------------------------------------------------------------------
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -94,9 +92,8 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
+
 def is_staff():
     return current_user.is_authenticated and current_user.role in STAFF_ROLES
 
@@ -176,9 +173,8 @@ def bdtime(value, fmt='%d %b %Y, %I:%M %p'):
     return value.replace(tzinfo=timezone.utc).astimezone(BD_TZ).strftime(fmt)
 
 
-# ---------------------------------------------------------------------------
 # Auth routes
-# ---------------------------------------------------------------------------
+
 @app.route('/')
 def index():
     if current_user.is_authenticated:
@@ -252,9 +248,8 @@ def logout():
     return redirect(url_for('login'))
 
 
-# ---------------------------------------------------------------------------
 # Complaint routes
-# ---------------------------------------------------------------------------
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -366,9 +361,8 @@ def report():
                            priority_stats=count_by(Complaint.priority))
 
 
-# ---------------------------------------------------------------------------
 # API
-# ---------------------------------------------------------------------------
+
 @app.route('/api/complaints')
 @login_required
 def api_complaints():
@@ -385,9 +379,8 @@ def api_complaints():
     } for c in query.all()])
 
 
-# ---------------------------------------------------------------------------
 # Error handlers and template context
-# ---------------------------------------------------------------------------
+
 @app.errorhandler(CSRFError)
 def csrf_error(error):
     flash('Your session expired or the form was invalid. Please try again.', 'danger')
@@ -410,9 +403,8 @@ def inject_now():
     return {'now': utcnow()}
 
 
-# ---------------------------------------------------------------------------
 # Start-up
-# ---------------------------------------------------------------------------
+
 def create_default_admin():
     """Create the first admin. The password comes from ADMIN_PASSWORD or is generated once."""
     if User.query.filter_by(username='admin').first():

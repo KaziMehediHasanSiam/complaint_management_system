@@ -51,7 +51,7 @@
                                 {% if current_user.role in ['admin', 'staff'] %}
                                 <td>{{ complaint.author.username }}</td>
                                 {% endif %}
-                                <td>{{ complaint.created_at.strftime('%Y-%m-%d') }}</td>
+                                <td>{{ complaint.created_at|bdtime('%d %b %Y') }}</td>
                                 <td>
                                     <a href="{{ url_for('complaint_detail', complaint_id=complaint.id) }}" 
                                        class="btn btn-sm btn-outline-primary">

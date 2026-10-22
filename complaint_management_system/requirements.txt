@@ -1,0 +1,6 @@
+Flask
+Flask-SQLAlchemy
+Flask-Login
+Flask-WTF
+# Only needed if you use MySQL instead of the default SQLite:
+mysql-connector-python

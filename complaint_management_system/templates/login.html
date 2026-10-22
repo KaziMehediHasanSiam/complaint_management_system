@@ -39,6 +39,7 @@
 
             {% if register %}
             <form method="POST" id="registerForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="mb-3">
                     <label for="username" class="form-label">Username</label>
                     <input type="text" class="form-control" id="username" name="username" maxlength="20"
@@ -72,6 +73,7 @@
             <p class="text-center text-muted mt-4 mb-0">Already have an account? <a href="{{ url_for('login') }}">Login</a></p>
             {% else %}
             <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="mb-3">
                     <label for="username" class="form-label">Username</label>
                     <input type="text" class="form-control" id="username" name="username" required>

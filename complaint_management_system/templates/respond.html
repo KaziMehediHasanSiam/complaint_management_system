@@ -1,47 +1,68 @@
 {% extends "base.html" %}
+{% from "_macros.html" import priority_badge, status_badge %}
 
-{% block title %}Respond to Complaint - Complaint System{% endblock %}
+{% block title %}Respond to Complaint - Complaint Desk{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header">
-                <h4>Respond to Complaint #{{ complaint.id }}</h4>
-            </div>
+<div class="page-head">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-2">
+            <li class="breadcrumb-item"><a href="{{ url_for('view_complaints') }}">Complaints</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('complaint_detail', complaint_id=complaint.id) }}">#{{ complaint.id }}</a></li>
+            <li class="breadcrumb-item active">Respond</li>
+        </ol>
+    </nav>
+    <h1>Respond to complaint #{{ complaint.id }}</h1>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header"><h5>Complaint</h5></div>
             <div class="card-body">
-                <div class="mb-4">
-                    <h6>Complaint Details:</h6>
-                    <p><strong>Title:</strong> {{ complaint.title }}</p>
-                    <p><strong>Category:</strong> {{ complaint.category }}</p>
-                    <p><strong>Priority:</strong> 
-                        <span class="badge bg-{% if complaint.priority == 'High' %}danger{% elif complaint.priority == 'Medium' %}warning{% else %}info{% endif %}">
-                            {{ complaint.priority }}
-                        </span>
-                    </p>
-                    <p><strong>Description:</strong> {{ complaint.description }}</p>
+                <h6 class="mb-2">{{ complaint.title }}</h6>
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                    {{ priority_badge(complaint.priority) }}
+                    {{ status_badge(complaint.status) }}
+                    <span class="text-muted small">{{ complaint.category }}</span>
                 </div>
-                
+                <div class="desc-box prewrap">{{ complaint.description }}</div>
+                <p class="text-muted small mt-3 mb-0">
+                    By {{ complaint.author.username }} &middot; {{ complaint.created_at|bdtime }}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-body">
                 <form method="POST">
-                    <div class="mb-3">
-                        <label for="status" class="form-label">Update Status</label>
-                        <select class="form-control" id="status" name="status" required>
-                            <option value="Open" {% if complaint.status == 'Open' %}selected{% endif %}>Open</option>
-                            <option value="In Progress" {% if complaint.status == 'In Progress' %}selected{% endif %}>In Progress</option>
-                            <option value="Resolved" {% if complaint.status == 'Resolved' %}selected{% endif %}>Resolved</option>
-                            <option value="Closed" {% if complaint.status == 'Closed' %}selected{% endif %}>Closed</option>
-                        </select>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="mb-4">
+                        <label class="form-label d-block">Update status</label>
+                        <div class="chips">
+                            {% for s in statuses %}
+                            <label class="chip chip-{{ s|lower|replace(' ', '-') }}">
+                                <input type="radio" name="status" value="{{ s }}"
+                                       {{ 'checked' if s == (form.get('status') if form else complaint.status) }}>
+                                <span>{{ s }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="message" class="form-label">Response Message</label>
-                        <textarea class="form-control" id="message" name="message" 
-                                  rows="6" required placeholder="Enter your response to the user..."></textarea>
+
+                    <div class="mb-4">
+                        <label for="message" class="form-label">Response message</label>
+                        <textarea class="form-control" id="message" name="message" rows="7"
+                                  maxlength="5000" required
+                                  placeholder="Write your reply to the user...">{{ form.get('message', '') if form else '' }}</textarea>
                     </div>
-                    
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-success">Submit Response</button>
-                        <a href="{{ url_for('complaint_detail', complaint_id=complaint.id) }}" class="btn btn-outline-secondary">Cancel</a>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary px-4">Submit response</button>
+                        <a href="{{ url_for('complaint_detail', complaint_id=complaint.id) }}" class="btn btn-outline-primary">Cancel</a>
                     </div>
                 </form>
             </div>

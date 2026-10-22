@@ -186,3 +186,29 @@
 .pw-toggle:focus-visible{outline:2px solid var(--brand)}
 input[type="password"]::-ms-reveal,
 input[type="password"]::-ms-clear{display:none}
+
+/* ---------- Complaint pages: chips, details, report bars ---------- */
+.prewrap{white-space:pre-wrap;word-break:break-word}
+.desc-box{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:16px}
+
+.details{margin:0 0 20px}
+.details dt{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-top:14px}
+.details dt:first-child{margin-top:0}
+.details dd{margin:2px 0 0;font-weight:500}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{position:relative;margin:0}
+.chip input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;margin:0}
+.chip span{display:inline-flex;align-items:center;padding:8px 16px;border-radius:999px;border:1px solid var(--line);
+  background:var(--surface);color:var(--muted);font-weight:600;font-size:.88rem;transition:.15s}
+.chip:hover span{border-color:var(--c,var(--brand))}
+.chip input:checked + span{border-color:var(--c,var(--brand));color:var(--c,var(--brand));
+  background:color-mix(in srgb,var(--c,var(--brand)) 12%,transparent)}
+.chip input:focus-visible + span{outline:2px solid var(--brand);outline-offset:2px}
+.chip-low{--c:#0284c7}.chip-medium{--c:#ca8a04}.chip-high{--c:#ea580c}.chip-critical{--c:#be123c}
+.chip-open{--c:#2563eb}.chip-in-progress{--c:#d97706}.chip-resolved{--c:#16a34a}.chip-closed{--c:#64748b}
+
+.bars{list-style:none;margin:0;padding:0;display:grid;gap:18px}
+.bars-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:.9rem}
+.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar span{display:block;height:100%;border-radius:99px;background:var(--brand)}

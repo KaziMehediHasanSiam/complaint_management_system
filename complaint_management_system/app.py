@@ -1,33 +1,62 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+import os
 import re
+import secrets
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse, urljoin
+
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_wtf.csrf import CSRFProtect, CSRFError
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
-import os
 
 app = Flask(__name__)
 app.config.from_object('config.Config')
 
 db = SQLAlchemy(app)
+csrf = CSRFProtect(app)  # protects every POST form with a hidden csrf_token
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
 
-# Global Regex & Constants for Validation
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
 USERNAME_RE = re.compile(r'^(?=.*[A-Za-z])[A-Za-z0-9_.]{3,20}$')
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 COMMON_PASSWORDS = {'password', 'password1', '12345678', 'qwerty123', 'admin123', 'iloveyou'}
 
-# Database Models
+CATEGORIES = {
+    'Technical': 'Technical Issue',
+    'Billing': 'Billing Problem',
+    'Service': 'Service Quality',
+    'Facility': 'Facility Issue',
+    'Staff': 'Staff Behavior',
+    'Other': 'Other',
+}
+PRIORITIES = ['Low', 'Medium', 'High', 'Critical']
+STATUSES = ['Open', 'In Progress', 'Resolved', 'Closed']
+STAFF_ROLES = ('admin', 'staff')
+
+BD_TZ = timezone(timedelta(hours=6))  # Bangladesh Standard Time (no daylight saving)
+
+
+def utcnow():
+    """Naive UTC time. Replacement for the deprecated datetime.utcnow()."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+# ---------------------------------------------------------------------------
+# Database models
+# ---------------------------------------------------------------------------
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(500))
     role = db.Column(db.String(20), nullable=False, default='user')  # admin, staff, user
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
     complaints = db.relationship('Complaint', backref='author', lazy=True)
     responses = db.relationship('Response', backref='staff', lazy=True)
 
@@ -37,6 +66,7 @@ class User(UserMixin, db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+
 class Complaint(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
@@ -45,23 +75,44 @@ class Complaint(db.Model):
     priority = db.Column(db.String(20), default='Medium')  # Low, Medium, High, Critical
     status = db.Column(db.String(20), default='Open')  # Open, In Progress, Resolved, Closed
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    responses = db.relationship('Response', backref='complaint', lazy=True)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+    responses = db.relationship('Response', backref='complaint', lazy=True,
+                                order_by='Response.created_at')
+
 
 class Response(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     complaint_id = db.Column(db.Integer, db.ForeignKey('complaint.id'), nullable=False)
     staff_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     message = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
+
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+def is_staff():
+    return current_user.is_authenticated and current_user.role in STAFF_ROLES
+
+
+def is_safe_url(target):
+    """Allow only redirects that stay on this site (prevents open redirect)."""
+    if not target or '\\' in target:
+        return False
+    host = urlparse(request.host_url)
+    test = urlparse(urljoin(request.host_url, target))
+    return test.scheme in ('http', 'https') and host.netloc == test.netloc
+
 
 def username_taken(name):
     return User.query.filter(db.func.lower(User.username) == name.lower()).first() is not None
+
 
 def validate_registration(username, email, password, confirm):
     errors = []
@@ -95,31 +146,64 @@ def validate_registration(username, email, password, confirm):
 
     return errors
 
-# Routes
+
+def validate_complaint(title, description, category, priority):
+    errors = []
+    if not 3 <= len(title) <= 200:
+        errors.append('Title must be between 3 and 200 characters.')
+    if not 10 <= len(description) <= 5000:
+        errors.append('Description must be between 10 and 5000 characters.')
+    if category not in CATEGORIES:
+        errors.append('Please choose a valid category.')
+    if priority not in PRIORITIES:
+        errors.append('Please choose a valid priority.')
+    return errors
+
+
+def count_by(column):
+    rows = (db.session.query(column, db.func.count(Complaint.id))
+            .group_by(column)
+            .order_by(db.func.count(Complaint.id).desc())
+            .all())
+    return [(label, count) for label, count in rows]
+
+
+@app.template_filter('bdtime')
+def bdtime(value, fmt='%d %b %Y, %I:%M %p'):
+    """Show a stored UTC time in Bangladesh time."""
+    if not value:
+        return ''
+    return value.replace(tzinfo=timezone.utc).astimezone(BD_TZ).strftime(fmt)
+
+
+# ---------------------------------------------------------------------------
+# Auth routes
+# ---------------------------------------------------------------------------
 @app.route('/')
 def index():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
 
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
-    
+
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        user = User.query.filter(db.func.lower(User.username) == (username or '').lower()).first()
-        
+        username = (request.form.get('username') or '').strip()
+        password = request.form.get('password') or ''
+        user = User.query.filter(db.func.lower(User.username) == username.lower()).first()
+
         if user and user.check_password(password):
             login_user(user)
             next_page = request.args.get('next')
-            return redirect(next_page) if next_page else redirect(url_for('dashboard'))
-        else:
-            flash('Invalid username or password', 'danger')
-    
+            return redirect(next_page if is_safe_url(next_page) else url_for('dashboard'))
+        flash('Invalid username or password', 'danger')
+
     return render_template('login.html')
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -160,181 +244,197 @@ def check_username():
     return jsonify(valid=True, available=True, message='Username is available')
 
 
-@app.route('/dashboard')
-@login_required
-def dashboard():
-    total_complaints = Complaint.query.count()
-    user_complaints = Complaint.query.filter_by(user_id=current_user.id).count()
-    open_complaints = Complaint.query.filter_by(status='Open').count()
-    resolved_complaints = Complaint.query.filter_by(status='Resolved').count()
-    
-    if current_user.role in ['admin', 'staff']:
-        recent_complaints = Complaint.query.order_by(Complaint.created_at.desc()).limit(5).all()
-    else:
-        recent_complaints = Complaint.query.filter_by(user_id=current_user.id).order_by(Complaint.created_at.desc()).limit(5).all()
-    
-    return render_template('dashboard.html',
-                           total_complaints=total_complaints,
-                           user_complaints=user_complaints,
-                           open_complaints=open_complaints,
-                           resolved_complaints=resolved_complaints,
-                           recent_complaints=recent_complaints)
-
-@app.route('/submit_complaint', methods=['GET', 'POST'])
-@login_required
-def submit_complaint():
-    if request.method == 'POST':
-        title = request.form.get('title')
-        description = request.form.get('description')
-        category = request.form.get('category')
-        priority = request.form.get('priority')
-        
-        complaint = Complaint(
-            title=title,
-            description=description,
-            category=category,
-            priority=priority,
-            user_id=current_user.id
-        )
-        
-        db.session.add(complaint)
-        db.session.commit()
-        
-        flash('Complaint submitted successfully!', 'success')
-        return redirect(url_for('view_complaints'))
-    
-    return render_template('submit_complaint.html')
-
-@app.route('/view_complaints')
-@login_required
-def view_complaints():
-    if current_user.role in ['admin', 'staff']:
-        complaints = Complaint.query.order_by(Complaint.created_at.desc()).all()
-    else:
-        complaints = Complaint.query.filter_by(user_id=current_user.id).order_by(Complaint.created_at.desc()).all()
-    
-    return render_template('view_complaints.html', complaints=complaints)
-
-@app.route('/complaint/<int:complaint_id>')
-@login_required
-def complaint_detail(complaint_id):
-    complaint = Complaint.query.get_or_404(complaint_id)
-    
-    if current_user.role not in ['admin', 'staff'] and complaint.user_id != current_user.id:
-        flash('You do not have permission to view this complaint', 'danger')
-        return redirect(url_for('view_complaints'))
-    
-    return render_template('complaint_detail.html', complaint=complaint)
-
-@app.route('/respond/<int:complaint_id>', methods=['GET', 'POST'])
-@login_required
-def respond_complaint(complaint_id):
-    if current_user.role not in ['admin', 'staff']:
-        flash('You do not have permission to respond to complaints', 'danger')
-        return redirect(url_for('view_complaints'))
-    
-    complaint = Complaint.query.get_or_404(complaint_id)
-    
-    if request.method == 'POST':
-        message = request.form.get('message')
-        status = request.form.get('status')
-        
-        response = Response(
-            complaint_id=complaint_id,
-            staff_id=current_user.id,
-            message=message
-        )
-        
-        complaint.status = status
-        complaint.updated_at = datetime.utcnow()
-        
-        db.session.add(response)
-        db.session.commit()
-        
-        flash('Response submitted successfully!', 'success')
-        return redirect(url_for('complaint_detail', complaint_id=complaint_id))
-    
-    return render_template('respond.html', complaint=complaint)
-
-@app.route('/report')
-@login_required
-def report():
-    if current_user.role not in ['admin', 'staff']:
-        flash('You do not have permission to view reports', 'danger')
-        return redirect(url_for('dashboard'))
-    
-    category_stats = db.session.query(
-        Complaint.category,
-        db.func.count(Complaint.id)
-    ).group_by(Complaint.category).all()
-    
-    status_stats = db.session.query(
-        Complaint.status,
-        db.func.count(Complaint.id)
-    ).group_by(Complaint.status).all()
-    
-    priority_stats = db.session.query(
-        Complaint.priority,
-        db.func.count(Complaint.id)
-    ).group_by(Complaint.priority).all()
-    
-    return render_template('report.html',
-                           category_stats=category_stats,
-                           status_stats=status_stats,
-                           priority_stats=priority_stats)
-
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
 @login_required
 def logout():
     logout_user()
     flash('You have been logged out successfully!', 'success')
     return redirect(url_for('login'))
 
-# API Routes
+
+# ---------------------------------------------------------------------------
+# Complaint routes
+# ---------------------------------------------------------------------------
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    # Staff see every complaint, normal users only see their own numbers.
+    scope = Complaint.query if is_staff() else Complaint.query.filter_by(user_id=current_user.id)
+
+    return render_template('dashboard.html',
+                           total_complaints=scope.count(),
+                           open_complaints=scope.filter_by(status='Open').count(),
+                           in_progress_complaints=scope.filter_by(status='In Progress').count(),
+                           resolved_complaints=scope.filter_by(status='Resolved').count(),
+                           recent_complaints=scope.order_by(Complaint.created_at.desc()).limit(5).all())
+
+
+@app.route('/submit_complaint', methods=['GET', 'POST'])
+@login_required
+def submit_complaint():
+    form = None
+    if request.method == 'POST':
+        form = request.form
+        title = (form.get('title') or '').strip()
+        description = (form.get('description') or '').strip()
+        category = form.get('category') or ''
+        priority = form.get('priority') or ''
+
+        errors = validate_complaint(title, description, category, priority)
+        if not errors:
+            complaint = Complaint(title=title, description=description,
+                                  category=category, priority=priority,
+                                  user_id=current_user.id)
+            db.session.add(complaint)
+            db.session.commit()
+            flash('Complaint submitted successfully!', 'success')
+            return redirect(url_for('view_complaints'))
+
+        for message in errors:
+            flash(message, 'danger')
+
+    return render_template('submit_complaint.html', form=form,
+                           categories=CATEGORIES, priorities=PRIORITIES)
+
+
+@app.route('/view_complaints')
+@login_required
+def view_complaints():
+    query = Complaint.query if is_staff() else Complaint.query.filter_by(user_id=current_user.id)
+    complaints = query.order_by(Complaint.created_at.desc()).all()
+    return render_template('view_complaints.html', complaints=complaints)
+
+
+@app.route('/complaint/<int:complaint_id>')
+@login_required
+def complaint_detail(complaint_id):
+    complaint = Complaint.query.get_or_404(complaint_id)
+
+    if not is_staff() and complaint.user_id != current_user.id:
+        flash('You do not have permission to view this complaint', 'danger')
+        return redirect(url_for('view_complaints'))
+
+    return render_template('complaint_detail.html', complaint=complaint)
+
+
+@app.route('/respond/<int:complaint_id>', methods=['GET', 'POST'])
+@login_required
+def respond_complaint(complaint_id):
+    if not is_staff():
+        flash('You do not have permission to respond to complaints', 'danger')
+        return redirect(url_for('view_complaints'))
+
+    complaint = Complaint.query.get_or_404(complaint_id)
+    form = None
+
+    if request.method == 'POST':
+        form = request.form
+        message = (form.get('message') or '').strip()
+        status = form.get('status') or ''
+
+        errors = []
+        if not 1 <= len(message) <= 5000:
+            errors.append('Response message must be between 1 and 5000 characters.')
+        if status not in STATUSES:
+            errors.append('Please choose a valid status.')
+
+        if not errors:
+            db.session.add(Response(complaint_id=complaint.id, staff_id=current_user.id, message=message))
+            complaint.status = status
+            complaint.updated_at = utcnow()
+            db.session.commit()
+            flash('Response submitted successfully!', 'success')
+            return redirect(url_for('complaint_detail', complaint_id=complaint.id))
+
+        for text in errors:
+            flash(text, 'danger')
+
+    return render_template('respond.html', complaint=complaint, form=form, statuses=STATUSES)
+
+
+@app.route('/report')
+@login_required
+def report():
+    if not is_staff():
+        flash('You do not have permission to view reports', 'danger')
+        return redirect(url_for('dashboard'))
+
+    return render_template('report.html',
+                           total=Complaint.query.count(),
+                           category_stats=count_by(Complaint.category),
+                           status_stats=count_by(Complaint.status),
+                           priority_stats=count_by(Complaint.priority))
+
+
+# ---------------------------------------------------------------------------
+# API
+# ---------------------------------------------------------------------------
 @app.route('/api/complaints')
 @login_required
 def api_complaints():
-    if current_user.role in ['admin', 'staff']:
-        complaints = Complaint.query.all()
-    else:
-        complaints = Complaint.query.filter_by(user_id=current_user.id).all()
-    
-    complaints_data = []
-    for complaint in complaints:
-        complaints_data.append({
-            'id': complaint.id,
-            'title': complaint.title,
-            'category': complaint.category,
-            'priority': complaint.priority,
-            'status': complaint.status,
-            'created_at': complaint.created_at.isoformat(),
-            'author': complaint.author.username
-        })
-    
-    return jsonify(complaints_data)
+    query = Complaint.query if is_staff() else Complaint.query.filter_by(user_id=current_user.id)
 
-# Error Handlers
+    return jsonify([{
+        'id': c.id,
+        'title': c.title,
+        'category': c.category,
+        'priority': c.priority,
+        'status': c.status,
+        'created_at': c.created_at.isoformat(),
+        'author': c.author.username,
+    } for c in query.all()])
+
+
+# ---------------------------------------------------------------------------
+# Error handlers and template context
+# ---------------------------------------------------------------------------
+@app.errorhandler(CSRFError)
+def csrf_error(error):
+    flash('Your session expired or the form was invalid. Please try again.', 'danger')
+    return redirect(url_for('dashboard'))
+
+
 @app.errorhandler(404)
 def not_found_error(error):
     return render_template('404.html'), 404
+
 
 @app.errorhandler(500)
 def internal_error(error):
     db.session.rollback()
     return render_template('500.html'), 500
 
+
 @app.context_processor
 def inject_now():
-    return {'now': datetime.utcnow()}
+    return {'now': utcnow()}
+
+
+# ---------------------------------------------------------------------------
+# Start-up
+# ---------------------------------------------------------------------------
+def create_default_admin():
+    """Create the first admin. The password comes from ADMIN_PASSWORD or is generated once."""
+    if User.query.filter_by(username='admin').first():
+        return
+
+    password = os.environ.get('ADMIN_PASSWORD')
+    generated = not password
+    if generated:
+        password = secrets.token_urlsafe(10)
+
+    admin = User(username='admin', email='admin@example.com', role='admin')
+    admin.set_password(password)
+    db.session.add(admin)
+    db.session.commit()
+
+    if generated:
+        print(f'\n[setup] Admin account created -> username: admin | password: {password}\n')
+
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        
-        if not User.query.filter_by(username='admin').first():
-            admin = User(username='admin', email='admin@example.com', role='admin')
-            admin.set_password('admin123')
-            db.session.add(admin)
-            db.session.commit()
-    
-    app.run(debug=True)
+        create_default_admin()
+
+    app.run(debug=os.environ.get('FLASK_DEBUG') == '1')

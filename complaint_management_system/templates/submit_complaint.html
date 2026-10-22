@@ -1,58 +1,77 @@
 {% extends "base.html" %}
 
-{% block title %}Submit Complaint - Complaint System{% endblock %}
+{% block title %}Submit Complaint - Complaint Desk{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8">
+<div class="page-head">
+    <h1>Submit a complaint</h1>
+    <p class="text-muted mb-0">Tell us what went wrong. We will track it until it is resolved.</p>
+</div>
+
+<div class="row">
+    <div class="col-xl-8">
         <div class="card">
-            <div class="card-header">
-                <h4>Submit New Complaint</h4>
-            </div>
             <div class="card-body">
                 <form method="POST">
-                    <div class="mb-3">
-                        <label for="title" class="form-label">Complaint Title</label>
-                        <input type="text" class="form-control" id="title" name="title" required 
-                               placeholder="Enter a brief title for your complaint">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="mb-4">
+                        <label for="title" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="title" name="title"
+                               minlength="3" maxlength="200" required
+                               placeholder="A short summary of the problem"
+                               value="{{ form.get('title', '') if form else '' }}">
                     </div>
-                    
-                    <div class="mb-3">
+
+                    <div class="mb-4">
                         <label for="category" class="form-label">Category</label>
-                        <select class="form-control" id="category" name="category" required>
-                            <option value="">Select Category</option>
-                            <option value="Technical">Technical Issue</option>
-                            <option value="Billing">Billing Problem</option>
-                            <option value="Service">Service Quality</option>
-                            <option value="Facility">Facility Issue</option>
-                            <option value="Staff">Staff Behavior</option>
-                            <option value="Other">Other</option>
+                        <select class="form-select" id="category" name="category" required>
+                            <option value="">Select a category</option>
+                            {% for value, label in categories.items() %}
+                            <option value="{{ value }}" {{ 'selected' if form and form.get('category') == value }}>{{ label }}</option>
+                            {% endfor %}
                         </select>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="priority" class="form-label">Priority</label>
-                        <select class="form-control" id="priority" name="priority" required>
-                            <option value="Low">Low</option>
-                            <option value="Medium" selected>Medium</option>
-                            <option value="High">High</option>
-                            <option value="Critical">Critical</option>
-                        </select>
+
+                    <div class="mb-4">
+                        <label class="form-label d-block">Priority</label>
+                        <div class="chips">
+                            {% for p in priorities %}
+                            <label class="chip chip-{{ p|lower }}">
+                                <input type="radio" name="priority" value="{{ p }}"
+                                       {{ 'checked' if (form and form.get('priority') == p) or (not form and p == 'Medium') }}>
+                                <span>{{ p }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
                     </div>
-                    
-                    <div class="mb-3">
+
+                    <div class="mb-4">
                         <label for="description" class="form-label">Description</label>
-                        <textarea class="form-control" id="description" name="description" 
-                                  rows="6" required placeholder="Please provide detailed information about your complaint..."></textarea>
+                        <textarea class="form-control" id="description" name="description" rows="7"
+                                  minlength="10" maxlength="5000" required
+                                  placeholder="What happened? When? Anything that helps us understand the problem...">{{ form.get('description', '') if form else '' }}</textarea>
+                        <div class="field-msg text-end" id="descCount">0 / 5000</div>
                     </div>
-                    
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary">Submit Complaint</button>
-                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Cancel</a>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary px-4">Submit complaint</button>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary">Cancel</a>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var box = document.getElementById('description'), out = document.getElementById('descCount');
+    function update() { out.textContent = box.value.length + ' / 5000'; }
+    box.addEventListener('input', update);
+    update();
+})();
+</script>
 {% endblock %}

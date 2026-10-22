@@ -11,11 +11,11 @@
 <div class="row g-3">
     <div class="col-6 col-lg-3"><div class="stat stat-blue">
         <div class="stat-icon"><i class="fas fa-list"></i></div>
-        <div class="stat-num">{{ total_complaints }}</div><div class="stat-label">Total Complaints</div>
+        <div class="stat-num">{{ total_complaints }}</div><div class="stat-label">{{ 'Total Complaints' if current_user.role in ['admin', 'staff'] else 'My Complaints' }}</div>
     </div></div>
     <div class="col-6 col-lg-3"><div class="stat stat-teal">
-        <div class="stat-icon"><i class="fas fa-user"></i></div>
-        <div class="stat-num">{{ user_complaints }}</div><div class="stat-label">My Complaints</div>
+        <div class="stat-icon"><i class="fas fa-spinner"></i></div>
+        <div class="stat-num">{{ in_progress_complaints }}</div><div class="stat-label">In Progress</div>
     </div></div>
     <div class="col-6 col-lg-3"><div class="stat stat-amber">
         <div class="stat-icon"><i class="fas fa-clock"></i></div>
@@ -62,7 +62,7 @@
                                 <td>
                                     {{ status_badge(complaint.status) }}
                                 </td>
-                                <td>{{ complaint.created_at.strftime('%Y-%m-%d') }}</td>
+                                <td>{{ complaint.created_at|bdtime('%d %b %Y') }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

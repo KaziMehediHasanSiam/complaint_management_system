@@ -1,88 +1,46 @@
 {% extends "base.html" %}
+{% from "_macros.html" import bars %}
 
-{% block title %}Reports - Complaint System{% endblock %}
+{% block title %}Reports - Complaint Desk{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h2>Complaint Reports</h2>
-        <p class="text-muted">Analytics and statistics for complaints</p>
-    </div>
+<div class="page-head">
+    <h1>Reports</h1>
+    <p class="text-muted mb-0">{{ total }} complaint{{ '' if total == 1 else 's' }} in total</p>
 </div>
 
-<div class="row mt-4">
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h5>Complaints by Category</h5>
-            </div>
-            <div class="card-body">
-                <ul class="list-group">
-                    {% for category, count in category_stats %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        {{ category }}
-                        <span class="badge bg-primary rounded-pill">{{ count }}</span>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><h5>By category</h5></div>
+            <div class="card-body">{{ bars(category_stats, total) }}</div>
         </div>
     </div>
-    
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h5>Complaints by Status</h5>
-            </div>
-            <div class="card-body">
-                <ul class="list-group">
-                    {% for status, count in status_stats %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        {{ status }}
-                        <span class="badge bg-{% if status == 'Open' %}primary{% elif status == 'In Progress' %}warning{% else %}success{% endif %} rounded-pill">
-                            {{ count }}
-                        </span>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
+
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><h5>By status</h5></div>
+            <div class="card-body">{{ bars(status_stats, total, 'status') }}</div>
         </div>
     </div>
-    
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h5>Complaints by Priority</h5>
-            </div>
-            <div class="card-body">
-                <ul class="list-group">
-                    {% for priority, count in priority_stats %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        {{ priority }}
-                        <span class="badge bg-{% if priority == 'High' %}danger{% elif priority == 'Medium' %}warning{% elif priority == 'Critical' %}dark{% else %}info{% endif %} rounded-pill">
-                            {{ count }}
-                        </span>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
+
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><h5>By priority</h5></div>
+            <div class="card-body">{{ bars(priority_stats, total, 'priority') }}</div>
         </div>
     </div>
 </div>
 
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5>Export Data</h5>
-            </div>
-            <div class="card-body">
-                <p>Export complaint data for further analysis:</p>
-                <a href="{{ url_for('api_complaints') }}" class="btn btn-outline-primary" target="_blank">
-                    <i class="fas fa-download"></i> Export as JSON
-                </a>
-            </div>
+<div class="card mt-3">
+    <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h5 class="mb-1">Export data</h5>
+            <p class="text-muted mb-0">Download all complaints as JSON for further analysis.</p>
         </div>
+        <a href="{{ url_for('api_complaints') }}" class="btn btn-outline-primary" target="_blank">
+            <i class="fas fa-download"></i> Export JSON
+        </a>
     </div>
 </div>
 {% endblock %}

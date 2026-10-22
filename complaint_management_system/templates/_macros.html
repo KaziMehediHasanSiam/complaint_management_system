@@ -5,3 +5,25 @@
 {% macro status_badge(s) %}
 <span class="pill pill-{{ s|lower|replace(' ','-') }}">{{ s }}</span>
 {% endmacro %}
+
+{# A list of labelled horizontal bars. rows = [(label, count), ...] #}
+{% macro bars(rows, total, kind='') %}
+{% if rows %}
+<ul class="bars">
+    {% for label, count in rows %}
+    {% set pct = ((count * 100 / total)|round(1)) if total else 0 %}
+    <li>
+        <div class="bars-top">
+            {% if kind == 'status' %}{{ status_badge(label) }}
+            {% elif kind == 'priority' %}{{ priority_badge(label) }}
+            {% else %}<span class="fw-semibold">{{ label }}</span>{% endif %}
+            <span class="text-muted">{{ count }} &middot; {{ pct|round|int }}%</span>
+        </div>
+        <div class="bar"><span style="width: {{ pct }}%"></span></div>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="text-muted mb-0">No data yet.</p>
+{% endif %}
+{% endmacro %}

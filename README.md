@@ -1,36 +1,72 @@
-Complaint Management System
+# Complaint Desk - Complaint Management System
 
-This is a simple web-based Complaint Management System developed as part of our academic project using Flask and MySQL.The main goal of this project is to help users submit complaints online and allow staff/admin to manage and respond to them.
+A web-based complaint management system built with **Flask** as an academic project.
+Users submit complaints and follow their progress; staff and admins respond and update the status.
 
-Project Features :
-User Side -
-Users can register and login to the system using a username and password
-After login, users can submit complaints by providing title, description, category, and priority
-Users can view only their own submitted complaints and check current complaint status
+## Features
 
-Staff / Admin Side :
-Admin and staff can view all complaints submitted by users
-Staff/admin can respond to complaints and update the complaint status (Open, In Progress, Resolved, etc.)
-Admin can see complaint details along with user information
+**For users**
+- Register and log in (animated lamp login page, live username check, password strength rules, show/hide password)
+- Submit complaints with title, category, priority and description
+- See only their own complaints, with a status timeline and staff replies
 
-Dashboard & Reports :
-Dashboard shows total complaints, open complaints, and resolved complaints
-Recent complaints are shown on the dashboard for quick overview
-Report page displays complaint count based on category, status, and priority
+**For staff and admins**
+- See all complaints, reply, and change the status (Open, In Progress, Resolved, Closed)
+- Reports page with complaint counts by category, status and priority, plus a JSON export
 
-System Features :
-Role-based access system (User, Staff, Admin)
-Passwords are stored in encrypted format for security
-Proper error handling for invalid pages and server errors
+**General**
+- Role-based access (user, staff, admin)
+- Passwords are stored as salted hashes
+- CSRF protection on all forms, server-side validation, safe redirects
+- Responsive layout with a dark mode toggle
+- Times are shown in Bangladesh time (UTC+6)
 
+## Tech stack
 
-Technologies Used :
-Python (Flask)
-MySQL
-HTML, CSS, Bootstrap
-SQLAlchemy ORM
+Python, Flask, Flask-SQLAlchemy, Flask-Login, Flask-WTF, Bootstrap 5, SQLite (default) or MySQL.
 
-Notes :
-Database tables are created automatically when the project runs
-Admin account is created by default for testing purpose
-This project focuses on functionality rather than UI design
+## Run it locally
+
+```bash
+cd complaint_management_system
+python -m venv venv
+venv\Scripts\activate          # Windows
+# source venv/bin/activate     # macOS / Linux
+pip install -r requirements.txt
+python app.py
+```
+
+Open http://127.0.0.1:5000
+
+On the first run an `admin` account is created and its generated password is printed in the terminal.
+To choose the password yourself, set `ADMIN_PASSWORD` before the first run.
+
+## Configuration (environment variables)
+
+| Variable | Purpose |
+|---|---|
+| `SECRET_KEY` | Signs session cookies. Set it for any real deployment. |
+| `DATABASE_URL` | Database address. Defaults to a local SQLite file. Example for MySQL: `mysql+mysqlconnector://user:password@localhost/complaint_db` |
+| `ADMIN_PASSWORD` | Password for the first admin account. |
+| `FLASK_DEBUG` | Set to `1` for debug mode while developing. Never use it in production. |
+
+## Managing users
+
+New registrations are always normal users. An admin can promote someone or reset a password:
+
+```bash
+python manage_user.py role <username> staff
+python manage_user.py password <username> <new_password>
+```
+
+## Project structure
+
+```
+complaint_management_system/
+  app.py            routes, models, validation
+  config.py         settings (read from environment variables)
+  manage_user.py    admin helper
+  templates/        Jinja templates
+  static/style.css  design system, light and dark themes
+  database/         sample MySQL schema
+```

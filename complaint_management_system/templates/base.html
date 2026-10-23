@@ -41,6 +41,7 @@
             <a class="nav-link-item {{ 'active' if request.endpoint == 'dashboard' }}" href="{{ url_for('dashboard') }}"><i class="fas fa-house"></i> Dashboard</a>
             <a class="nav-link-item {{ 'active' if request.endpoint == 'submit_complaint' }}" href="{{ url_for('submit_complaint') }}"><i class="fas fa-pen-to-square"></i> Submit Complaint</a>
             <a class="nav-link-item {{ 'active' if request.endpoint in ['view_complaints','complaint_detail','respond_complaint'] }}" href="{{ url_for('view_complaints') }}"><i class="fas fa-inbox"></i> Complaints</a>
+            <a class="nav-link-item {{ 'active' if request.endpoint == 'track' }}" href="{{ url_for('track') }}"><i class="fas fa-magnifying-glass"></i> Track Complaint</a>
             {% if current_user.role in ['admin', 'staff'] %}
             <div class="nav-label">Management</div>
             <a class="nav-link-item {{ 'active' if request.endpoint == 'report' }}" href="{{ url_for('report') }}"><i class="fas fa-chart-pie"></i> Reports</a>

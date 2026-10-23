@@ -44,6 +44,10 @@
                             </label>
                             {% endfor %}
                         </div>
+                        <div class="form-text mt-2">
+                            Target resolution:
+                            {% for p in priorities %}{{ p }} {{ sla_hours[p]|hours_label }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+                        </div>
                     </div>
 
                     <div class="mb-4">

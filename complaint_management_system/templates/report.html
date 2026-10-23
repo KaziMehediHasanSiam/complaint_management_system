@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% from "_macros.html" import bars %}
 
 {% block title %}Reports - Complaint Desk{% endblock %}
 
@@ -9,28 +8,58 @@
     <p class="text-muted mb-0">{{ total }} complaint{{ '' if total == 1 else 's' }} in total</p>
 </div>
 
-<div class="row g-3">
-    <div class="col-lg-4">
+<div class="row g-3 row-cols-2 row-cols-lg-4">
+    <div class="col"><div class="stat stat-blue">
+        <div class="stat-icon"><i class="fas fa-folder-open"></i></div>
+        <div class="stat-num">{{ active_count }}</div><div class="stat-label">Active now</div>
+    </div></div>
+    <div class="col"><div class="stat stat-red">
+        <div class="stat-icon"><i class="fas fa-triangle-exclamation"></i></div>
+        <div class="stat-num">{{ overdue_count }}</div><div class="stat-label">Overdue now</div>
+    </div></div>
+    <div class="col"><div class="stat stat-green">
+        <div class="stat-icon"><i class="fas fa-circle-check"></i></div>
+        <div class="stat-num">{{ resolution_rate }}%</div><div class="stat-label">Resolved or closed</div>
+    </div></div>
+    <div class="col"><div class="stat stat-teal">
+        <div class="stat-icon"><i class="fas fa-stopwatch"></i></div>
+        <div class="stat-num stat-num-sm">{{ avg_first_response or '—' }}</div><div class="stat-label">Avg first response</div>
+    </div></div>
+</div>
+
+{% if total %}
+<div class="row g-3 mt-1">
+    <div class="col-lg-8">
         <div class="card h-100">
-            <div class="card-header"><h5>By category</h5></div>
-            <div class="card-body">{{ bars(category_stats, total) }}</div>
+            <div class="card-header"><h5>Complaints per day <span class="text-muted fw-normal fs-6">&middot; last 14 days</span></h5></div>
+            <div class="card-body"><div class="chart-box"><canvas id="chartDays"></canvas></div></div>
         </div>
     </div>
-
     <div class="col-lg-4">
         <div class="card h-100">
             <div class="card-header"><h5>By status</h5></div>
-            <div class="card-body">{{ bars(status_stats, total, 'status') }}</div>
+            <div class="card-body"><div class="chart-box"><canvas id="chartStatus"></canvas></div></div>
         </div>
     </div>
-
-    <div class="col-lg-4">
+    <div class="col-lg-6">
         <div class="card h-100">
             <div class="card-header"><h5>By priority</h5></div>
-            <div class="card-body">{{ bars(priority_stats, total, 'priority') }}</div>
+            <div class="card-body"><div class="chart-box"><canvas id="chartPriority"></canvas></div></div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><h5>By category</h5></div>
+            <div class="card-body"><div class="chart-box"><canvas id="chartCategory"></canvas></div></div>
         </div>
     </div>
 </div>
+{% else %}
+<div class="card mt-3"><div class="card-body text-center py-5 text-muted">
+    <i class="fas fa-chart-pie fa-3x mb-3"></i>
+    <p class="mb-0">Charts will appear once the first complaint is submitted.</p>
+</div></div>
+{% endif %}
 
 <div class="card mt-3">
     <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
@@ -43,4 +72,82 @@
         </a>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if total %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    if (typeof Chart === 'undefined') return;  // CDN unreachable: the numbers above still work
+
+    var DATA = {{ chart_data|tojson }};
+    var charts = [];
+
+    function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+    function build() {
+        charts.forEach(function (c) { c.destroy(); });
+        charts = [];
+
+        var brand = css('--brand'), line = css('--line'), surface = css('--surface');
+        Chart.defaults.color = css('--muted');
+        Chart.defaults.font.family = "'Inter', 'Hind Siliguri', sans-serif";
+
+        var statusColors = ['#2563eb', '#d97706', '#16a34a', '#64748b'];
+        var priorityColors = ['#0284c7', '#ca8a04', '#ea580c', '#be123c'];
+        var palette = ['#0f766e', '#2563eb', '#d97706', '#be123c', '#7c3aed', '#64748b'];
+        var noLegend = { legend: { display: false } };
+        var counts = { beginAtZero: true, ticks: { precision: 0 }, grid: { color: line } };
+
+        function add(id, config) {
+            var el = document.getElementById(id);
+            if (el) charts.push(new Chart(el, config));
+        }
+
+        add('chartDays', {
+            type: 'line',
+            data: { labels: DATA.days.labels, datasets: [{
+                data: DATA.days.values, borderColor: brand, backgroundColor: brand + '22',
+                fill: true, tension: 0.35, pointRadius: 3
+            }] },
+            options: { maintainAspectRatio: false, plugins: noLegend,
+                       scales: { y: counts, x: { grid: { display: false } } } }
+        });
+
+        add('chartStatus', {
+            type: 'doughnut',
+            data: { labels: DATA.status.labels, datasets: [{
+                data: DATA.status.values, backgroundColor: statusColors, borderColor: surface, borderWidth: 3
+            }] },
+            options: { maintainAspectRatio: false, cutout: '66%', plugins: { legend: { position: 'bottom' } } }
+        });
+
+        add('chartPriority', {
+            type: 'bar',
+            data: { labels: DATA.priority.labels, datasets: [{
+                data: DATA.priority.values, backgroundColor: priorityColors, borderRadius: 8, maxBarThickness: 56
+            }] },
+            options: { maintainAspectRatio: false, plugins: noLegend,
+                       scales: { y: counts, x: { grid: { display: false } } } }
+        });
+
+        add('chartCategory', {
+            type: 'bar',
+            data: { labels: DATA.category.labels, datasets: [{
+                data: DATA.category.values,
+                backgroundColor: DATA.category.labels.map(function (_, i) { return palette[i % palette.length]; }),
+                borderRadius: 8, maxBarThickness: 28
+            }] },
+            options: { indexAxis: 'y', maintainAspectRatio: false, plugins: noLegend,
+                       scales: { x: counts, y: { grid: { display: false } } } }
+        });
+    }
+
+    build();
+    // redraw with the right colours when the theme is switched
+    new MutationObserver(build).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+</script>
+{% endif %}
 {% endblock %}

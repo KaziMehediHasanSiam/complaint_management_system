@@ -1,96 +1,104 @@
 {% extends "base.html" %}
-{% from "_macros.html" import priority_badge, status_badge %}
+{% from "_macros.html" import priority_badge, status_badge, sla_badge %}
 
-{% block title %}Dashboard - Complaint System{% endblock %}
+{% block title %}Dashboard - Complaint Desk{% endblock %}
+
 {% block content %}
 <div class="page-head">
     <h1>Welcome back, {{ current_user.username }}</h1>
     <p class="text-muted mb-0">Summary of today's complaints</p>
 </div>
 
-<div class="row g-3">
-    <div class="col-6 col-lg-3"><div class="stat stat-blue">
+<div class="row g-3 row-cols-2 row-cols-lg-5">
+    <div class="col"><div class="stat stat-blue">
         <div class="stat-icon"><i class="fas fa-list"></i></div>
-        <div class="stat-num">{{ total_complaints }}</div><div class="stat-label">{{ 'Total Complaints' if current_user.role in ['admin', 'staff'] else 'My Complaints' }}</div>
+        <div class="stat-num">{{ total_complaints }}</div>
+        <div class="stat-label">{{ 'Total Complaints' if current_user.role in ['admin', 'staff'] else 'My Complaints' }}</div>
     </div></div>
-    <div class="col-6 col-lg-3"><div class="stat stat-teal">
-        <div class="stat-icon"><i class="fas fa-spinner"></i></div>
-        <div class="stat-num">{{ in_progress_complaints }}</div><div class="stat-label">In Progress</div>
-    </div></div>
-    <div class="col-6 col-lg-3"><div class="stat stat-amber">
+    <div class="col"><div class="stat stat-amber">
         <div class="stat-icon"><i class="fas fa-clock"></i></div>
         <div class="stat-num">{{ open_complaints }}</div><div class="stat-label">Open</div>
     </div></div>
-    <div class="col-6 col-lg-3"><div class="stat stat-green">
+    <div class="col"><div class="stat stat-teal">
+        <div class="stat-icon"><i class="fas fa-spinner"></i></div>
+        <div class="stat-num">{{ in_progress_complaints }}</div><div class="stat-label">In Progress</div>
+    </div></div>
+    <div class="col"><div class="stat stat-green">
         <div class="stat-icon"><i class="fas fa-check"></i></div>
         <div class="stat-num">{{ resolved_complaints }}</div><div class="stat-label">Resolved</div>
     </div></div>
+    <div class="col"><div class="stat stat-red">
+        <div class="stat-icon"><i class="fas fa-triangle-exclamation"></i></div>
+        <div class="stat-num">{{ overdue_count }}</div><div class="stat-label">Overdue</div>
+    </div></div>
 </div>
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5>Recent Complaints</h5>
-            </div>
-            <div class="card-body">
-                {% if recent_complaints %}
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Title</th>
-                                <th>Category</th>
-                                <th>Priority</th>
-                                <th>Status</th>
-                                <th>Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for complaint in recent_complaints %}
-                            <tr>
-                                <td>{{ complaint.id }}</td>
-                                <td>
-                                    <a href="{{ url_for('complaint_detail', complaint_id=complaint.id) }}">
-                                        {{ complaint.title }}
-                                    </a>
-                                </td>
-                                <td>{{ complaint.category }}</td>
-                                <td>
-                                    {{ priority_badge(complaint.priority) }}
-                                </td>
-                                <td>
-                                    {{ status_badge(complaint.status) }}
-                                </td>
-                                <td>{{ complaint.created_at|bdtime('%d %b %Y') }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+
+{% if overdue_count %}
+<div class="card attention mt-4">
+    <div class="card-header">
+        <h5><i class="fas fa-triangle-exclamation"></i> Needs attention
+            <span class="text-muted fw-normal fs-6">&middot; {{ overdue_count }} past the target time</span></h5>
+    </div>
+    <div class="card-body">
+        <ul class="attention-list">
+            {% for complaint in overdue_complaints %}
+            <li>
+                <div>
+                    <a href="{{ url_for('complaint_detail', complaint_id=complaint.id) }}" class="fw-semibold">{{ complaint.title }}</a>
+                    <div class="small text-muted"><span class="track-id">{{ complaint.tracking_id }}</span></div>
                 </div>
-                {% else %}
-                <p class="text-muted">No complaints found.</p>
-                {% endif %}
-            </div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    {{ priority_badge(complaint.priority) }}
+                    {{ sla_badge(complaint) }}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endif %}
+
+<div class="card mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5>Recent complaints</h5>
+        <a href="{{ url_for('view_complaints') }}" class="small">View all &rarr;</a>
+    </div>
+    <div class="card-body">
+        {% if recent_complaints %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Tracking ID</th>
+                        <th>Title</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Target</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for complaint in recent_complaints %}
+                    <tr>
+                        <td><span class="track-id">{{ complaint.tracking_id }}</span></td>
+                        <td><a href="{{ url_for('complaint_detail', complaint_id=complaint.id) }}">{{ complaint.title }}</a></td>
+                        <td>{{ priority_badge(complaint.priority) }}</td>
+                        <td>{{ status_badge(complaint.status) }}</td>
+                        <td>{{ sla_badge(complaint) or '—' }}</td>
+                        <td>{{ complaint.created_at|bdtime('%d %b %Y') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
+        {% else %}
+        <p class="text-muted mb-0">No complaints found.</p>
+        {% endif %}
     </div>
 </div>
 
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body text-center">
-                <h5>Quick Actions</h5>
-                <div class="mt-3">
-                    <a href="{{ url_for('submit_complaint') }}" class="btn btn-primary me-2">
-                        <i class="fas fa-plus"></i> Submit New Complaint
-                    </a>
-                    <a href="{{ url_for('view_complaints') }}" class="btn btn-outline-primary">
-                        <i class="fas fa-list"></i> View All Complaints
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="d-flex flex-wrap gap-2 mt-4">
+    <a href="{{ url_for('submit_complaint') }}" class="btn btn-primary"><i class="fas fa-plus"></i> Submit new complaint</a>
+    <a href="{{ url_for('track') }}" class="btn btn-outline-primary"><i class="fas fa-magnifying-glass"></i> Track a complaint</a>
 </div>
 {% endblock %}

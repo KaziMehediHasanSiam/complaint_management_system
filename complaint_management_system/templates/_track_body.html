@@ -1,0 +1,62 @@
+{% from "_macros.html" import priority_badge, status_badge, sla_badge %}
+
+<div class="page-head">
+    <h1>Track a complaint</h1>
+    <p class="text-muted mb-0">Enter your tracking ID and the email address you registered with.</p>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('track') }}" class="row g-3 align-items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-md-5">
+                <label for="trackCode" class="form-label">Tracking ID</label>
+                <input type="text" class="form-control" id="trackCode" name="code" required autocomplete="off"
+                       placeholder="CMP-2026-0042" value="{{ form.get('code', '') if form else '' }}">
+            </div>
+            <div class="col-md-5">
+                <label for="trackEmail" class="form-label">Email</label>
+                <input type="email" class="form-control" id="trackEmail" name="email" required
+                       placeholder="you@example.com"
+                       value="{{ form.get('email', '') if form else (current_user.email if current_user.is_authenticated else '') }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Track</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if complaint %}
+{% set steps = ['Open', 'In Progress', 'Resolved', 'Closed'] %}
+{% set labels = {'Open': 'Submitted', 'In Progress': 'In progress', 'Resolved': 'Resolved', 'Closed': 'Closed'} %}
+{% set current = steps.index(complaint.status) if complaint.status in steps else 0 %}
+<div class="card">
+    <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <div class="text-muted small">Tracking ID</div>
+                <div class="track-id fs-5">{{ complaint.tracking_id }}</div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                {{ priority_badge(complaint.priority) }}
+                {{ status_badge(complaint.status) }}
+            </div>
+        </div>
+
+        <ol class="stepper my-4">
+            {% for s in steps %}
+            <li class="{{ 'done' if loop.index0 < current else ('current' if loop.index0 == current else '') }}">{{ labels[s] }}</li>
+            {% endfor %}
+        </ol>
+
+        <dl class="details details-grid mb-0">
+            <div><dt>Category</dt><dd>{{ complaint.category }}</dd></div>
+            <div><dt>Submitted</dt><dd>{{ complaint.created_at|bdtime }}</dd></div>
+            <div><dt>Last updated</dt><dd>{{ complaint.updated_at|bdtime }}</dd></div>
+            <div><dt>Staff replies</dt><dd>{{ complaint.responses|length }}</dd></div>
+            <div><dt>Target resolution</dt><dd>{{ complaint.due_at|bdtime }} {{ sla_badge(complaint) }}</dd></div>
+        </dl>
+    </div>
+</div>
+{% endif %}

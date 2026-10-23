@@ -212,3 +212,38 @@ input[type="password"]::-ms-clear{display:none}
 .bars-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:.9rem}
 .bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
 .bar span{display:block;height:100%;border-radius:99px;background:var(--brand)}
+
+/* ---------- Tracking ID, SLA, stepper, charts ---------- */
+.track-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85em;font-weight:600;
+  color:var(--ink);background:var(--brand-soft);padding:2px 8px;border-radius:8px;white-space:nowrap}
+
+.sla{--c:#64748b;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
+  font-size:.78rem;font-weight:600;color:var(--c);background:color-mix(in srgb,var(--c) 13%,transparent);white-space:nowrap}
+.sla-ok{--c:#16a34a}.sla-soon{--c:#d97706}.sla-overdue{--c:#dc2626}
+
+.stat-red{--c:#dc2626}
+.stat-num-sm{font-size:1.5rem;padding-top:.45rem}
+
+.attention{border-color:color-mix(in srgb,#dc2626 35%,var(--line))}
+.attention .card-header h5{color:#dc2626}
+.attention-list{list-style:none;margin:0;padding:0}
+.attention-list li{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;
+  padding:12px 0;border-bottom:1px solid var(--line)}
+.attention-list li:last-child{border-bottom:0;padding-bottom:0}
+.attention-list li:first-child{padding-top:0}
+
+.track-wrap{max-width:760px;margin:0 auto;padding:40px 16px}
+.stepper{display:flex;list-style:none;margin:0;padding:0}
+.stepper li{flex:1;position:relative;text-align:center;font-size:.82rem;color:var(--muted)}
+.stepper li::before{content:"";display:block;width:14px;height:14px;margin:0 auto 8px;border-radius:50%;
+  background:var(--surface);box-shadow:0 0 0 2px var(--line);position:relative;z-index:1}
+.stepper li::after{content:"";position:absolute;top:6px;left:50%;width:100%;height:2px;background:var(--line)}
+.stepper li:last-child::after{display:none}
+.stepper li.done::before,.stepper li.current::before{background:var(--brand);box-shadow:0 0 0 2px var(--brand)}
+.stepper li.done::after{background:var(--brand)}
+.stepper li.current{color:var(--ink);font-weight:600}
+
+.details-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px 24px}
+.details-grid dt{margin-top:0}
+
+.chart-box{position:relative;height:280px}

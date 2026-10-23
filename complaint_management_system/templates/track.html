@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Track a Complaint - Complaint Desk{% endblock %}
+
+{# Logged-in users see it inside the app layout, visitors get a standalone page. #}
+{% block content %}
+{% include "_track_body.html" %}
+{% endblock %}
+
+{% block content_guest %}
+<div class="track-wrap">
+    <a class="brand" href="{{ url_for('login') }}">
+        <span class="brand-mark"><i class="fas fa-comments"></i></span> Complaint Desk
+    </a>
+    {% include "_track_body.html" %}
+    <p class="text-center mt-4 mb-0"><a href="{{ url_for('login') }}">&larr; Back to login</a></p>
+</div>
+{% endblock %}

@@ -1,6 +1,7 @@
 import os
 import re
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse, urljoin
 
@@ -20,10 +21,12 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
 
+# ---------------------------------------------------------------------------
 # Constants
-
+# ---------------------------------------------------------------------------
 USERNAME_RE = re.compile(r'^(?=.*[A-Za-z])[A-Za-z0-9_.]{3,20}$')
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+TRACKING_RE = re.compile(r'^CMP-(\d{4})-(\d+)$', re.IGNORECASE)
 COMMON_PASSWORDS = {'password', 'password1', '12345678', 'qwerty123', 'admin123', 'iloveyou'}
 
 CATEGORIES = {
@@ -36,18 +39,87 @@ CATEGORIES = {
 }
 PRIORITIES = ['Low', 'Medium', 'High', 'Critical']
 STATUSES = ['Open', 'In Progress', 'Resolved', 'Closed']
+ACTIVE_STATUSES = ('Open', 'In Progress')
 STAFF_ROLES = ('admin', 'staff')
+
+# Target time (in hours) to resolve a complaint, by priority.
+SLA_HOURS = {'Critical': 24, 'High': 48, 'Medium': 72, 'Low': 120}
 
 BD_TZ = timezone(timedelta(hours=6))  # Bangladesh Standard Time (no daylight saving)
 
 
+# ---------------------------------------------------------------------------
+# Time, tracking-ID and SLA helpers (pure functions)
+# ---------------------------------------------------------------------------
 def utcnow():
     """Naive UTC time. Replacement for the deprecated datetime.utcnow()."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-# Database models
+def humanize(delta):
+    """Short text for a time span, e.g. '2d 5h', '3h 20m', '12m'."""
+    minutes = int(abs(delta.total_seconds()) // 60)
+    days, rest = divmod(minutes, 1440)
+    hours, mins = divmod(rest, 60)
+    if days:
+        return f'{days}d {hours}h'
+    if hours:
+        return f'{hours}h {mins}m'
+    return f'{mins}m'
 
+
+def make_tracking_id(complaint_id, created_at):
+    year = (created_at or utcnow()).year
+    return f'CMP-{year}-{complaint_id:04d}'
+
+
+def sla_due(created_at, priority):
+    return created_at + timedelta(hours=SLA_HOURS.get(priority, SLA_HOURS['Medium']))
+
+
+def sla_info(created_at, priority, status, now=None):
+    """None for finished complaints, otherwise {'level': overdue|soon|ok, 'text': ...}."""
+    if status not in ACTIVE_STATUSES:
+        return None
+    left = sla_due(created_at, priority) - (now or utcnow())
+    if left.total_seconds() < 0:
+        return {'level': 'overdue', 'text': f'Overdue by {humanize(left)}'}
+    if left <= timedelta(hours=6):
+        return {'level': 'soon', 'text': f'Due in {humanize(left)}'}
+    return {'level': 'ok', 'text': f'Due in {humanize(left)}'}
+
+
+def bucket_daily(created_list, days, today):
+    """Count complaints per Bangladesh calendar day for the last `days` days."""
+    start = today - timedelta(days=days - 1)
+    buckets = {start + timedelta(days=i): 0 for i in range(days)}
+    for created in created_list:
+        day = created.replace(tzinfo=timezone.utc).astimezone(BD_TZ).date()
+        if day in buckets:
+            buckets[day] += 1
+    return [d.strftime('%d %b') for d in buckets], list(buckets.values())
+
+
+_attempts = {}
+
+
+def rate_limited(key, limit=20, window=600):
+    """Tiny in-memory limiter: True when `key` made `limit` calls within `window` seconds."""
+    now = time.time()
+    if len(_attempts) > 1000:  # keep memory small
+        for k in [k for k, v in _attempts.items() if not v or now - v[-1] > window]:
+            del _attempts[k]
+    hits = [t for t in _attempts.get(key, []) if now - t < window]
+    limited = len(hits) >= limit
+    if not limited:
+        hits.append(now)
+    _attempts[key] = hits
+    return limited
+
+
+# ---------------------------------------------------------------------------
+# Database models
+# ---------------------------------------------------------------------------
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -78,6 +150,24 @@ class Complaint(db.Model):
     responses = db.relationship('Response', backref='complaint', lazy=True,
                                 order_by='Response.created_at')
 
+    # Calculated from existing columns, so no database change is needed.
+    @property
+    def tracking_id(self):
+        return make_tracking_id(self.id, self.created_at)
+
+    @property
+    def due_at(self):
+        return sla_due(self.created_at, self.priority)
+
+    @property
+    def sla(self):
+        return sla_info(self.created_at, self.priority, self.status)
+
+    @property
+    def is_overdue(self):
+        info = self.sla
+        return bool(info and info['level'] == 'overdue')
+
 
 class Response(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -92,8 +182,9 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 
-# Helpers
-
+# ---------------------------------------------------------------------------
+# Helpers that need the database
+# ---------------------------------------------------------------------------
 def is_staff():
     return current_user.is_authenticated and current_user.role in STAFF_ROLES
 
@@ -165,6 +256,42 @@ def count_by(column):
     return [(label, count) for label, count in rows]
 
 
+def daily_counts(days=14):
+    today = datetime.now(BD_TZ).date()
+    start = today - timedelta(days=days - 1)
+    start_utc = (datetime.combine(start, datetime.min.time(), tzinfo=BD_TZ)
+                 .astimezone(timezone.utc).replace(tzinfo=None))
+    rows = db.session.query(Complaint.created_at).filter(Complaint.created_at >= start_utc).all()
+    return bucket_daily([created for (created,) in rows], days, today)
+
+
+def average_first_response():
+    """Average time from submission to the first staff reply (text) or None."""
+    rows = (db.session.query(Complaint.created_at, db.func.min(Response.created_at))
+            .join(Response, Response.complaint_id == Complaint.id)
+            .group_by(Complaint.id, Complaint.created_at)
+            .all())
+    if not rows:
+        return None
+    seconds = [(first - created).total_seconds() for created, first in rows]
+    return humanize(timedelta(seconds=sum(seconds) / len(seconds)))
+
+
+def find_by_tracking(code, email):
+    """Return the complaint only if the tracking ID AND the author's email both match."""
+    code = (code or '').strip().upper()
+    email = (email or '').strip().lower()
+    match = TRACKING_RE.match(code)
+    if not match or not email:
+        return None
+    complaint = db.session.get(Complaint, int(match.group(2)))
+    if not complaint or complaint.tracking_id != code:
+        return None
+    if complaint.author.email.lower() != email:
+        return None
+    return complaint
+
+
 @app.template_filter('bdtime')
 def bdtime(value, fmt='%d %b %Y, %I:%M %p'):
     """Show a stored UTC time in Bangladesh time."""
@@ -173,8 +300,14 @@ def bdtime(value, fmt='%d %b %Y, %I:%M %p'):
     return value.replace(tzinfo=timezone.utc).astimezone(BD_TZ).strftime(fmt)
 
 
-# Auth routes
+@app.template_filter('hours_label')
+def hours_label(hours):
+    return f'{hours // 24} days' if hours >= 48 and hours % 24 == 0 else f'{hours} hours'
 
+
+# ---------------------------------------------------------------------------
+# Auth routes
+# ---------------------------------------------------------------------------
 @app.route('/')
 def index():
     if current_user.is_authenticated:
@@ -248,19 +381,25 @@ def logout():
     return redirect(url_for('login'))
 
 
+# ---------------------------------------------------------------------------
 # Complaint routes
-
+# ---------------------------------------------------------------------------
 @app.route('/dashboard')
 @login_required
 def dashboard():
     # Staff see every complaint, normal users only see their own numbers.
     scope = Complaint.query if is_staff() else Complaint.query.filter_by(user_id=current_user.id)
 
+    active = scope.filter(Complaint.status.in_(ACTIVE_STATUSES)).all()
+    overdue = sorted((c for c in active if c.is_overdue), key=lambda c: c.due_at)
+
     return render_template('dashboard.html',
                            total_complaints=scope.count(),
                            open_complaints=scope.filter_by(status='Open').count(),
                            in_progress_complaints=scope.filter_by(status='In Progress').count(),
                            resolved_complaints=scope.filter_by(status='Resolved').count(),
+                           overdue_count=len(overdue),
+                           overdue_complaints=overdue[:5],
                            recent_complaints=scope.order_by(Complaint.created_at.desc()).limit(5).all())
 
 
@@ -282,14 +421,14 @@ def submit_complaint():
                                   user_id=current_user.id)
             db.session.add(complaint)
             db.session.commit()
-            flash('Complaint submitted successfully!', 'success')
+            flash(f'Complaint submitted! Your tracking ID is {complaint.tracking_id}.', 'success')
             return redirect(url_for('view_complaints'))
 
         for message in errors:
             flash(message, 'danger')
 
-    return render_template('submit_complaint.html', form=form,
-                           categories=CATEGORIES, priorities=PRIORITIES)
+    return render_template('submit_complaint.html', form=form, categories=CATEGORIES,
+                           priorities=PRIORITIES, sla_hours=SLA_HOURS)
 
 
 @app.route('/view_complaints')
@@ -347,6 +486,24 @@ def respond_complaint(complaint_id):
     return render_template('respond.html', complaint=complaint, form=form, statuses=STATUSES)
 
 
+@app.route('/track', methods=['GET', 'POST'])
+def track():
+    """Public page: check a complaint's progress with tracking ID + the author's email."""
+    form = None
+    complaint = None
+
+    if request.method == 'POST':
+        form = request.form
+        if rate_limited(f'track:{request.remote_addr}'):
+            flash('Too many attempts. Please wait a few minutes and try again.', 'danger')
+        else:
+            complaint = find_by_tracking(form.get('code'), form.get('email'))
+            if complaint is None:
+                flash('No complaint matches that tracking ID and email.', 'danger')
+
+    return render_template('track.html', form=form, complaint=complaint)
+
+
 @app.route('/report')
 @login_required
 def report():
@@ -354,15 +511,35 @@ def report():
         flash('You do not have permission to view reports', 'danger')
         return redirect(url_for('dashboard'))
 
+    total = Complaint.query.count()
+    by_status = dict(count_by(Complaint.status))
+    by_priority = dict(count_by(Complaint.priority))
+    by_category = count_by(Complaint.category)
+    day_labels, day_values = daily_counts()
+
+    active = Complaint.query.filter(Complaint.status.in_(ACTIVE_STATUSES)).all()
+    finished = by_status.get('Resolved', 0) + by_status.get('Closed', 0)
+
+    chart_data = {
+        'days': {'labels': day_labels, 'values': day_values},
+        'status': {'labels': STATUSES, 'values': [by_status.get(s, 0) for s in STATUSES]},
+        'priority': {'labels': PRIORITIES, 'values': [by_priority.get(p, 0) for p in PRIORITIES]},
+        'category': {'labels': [CATEGORIES.get(name, name) for name, _ in by_category],
+                     'values': [count for _, count in by_category]},
+    }
+
     return render_template('report.html',
-                           total=Complaint.query.count(),
-                           category_stats=count_by(Complaint.category),
-                           status_stats=count_by(Complaint.status),
-                           priority_stats=count_by(Complaint.priority))
+                           total=total,
+                           active_count=len(active),
+                           overdue_count=sum(1 for c in active if c.is_overdue),
+                           resolution_rate=round(finished * 100 / total) if total else 0,
+                           avg_first_response=average_first_response(),
+                           chart_data=chart_data)
 
 
+# ---------------------------------------------------------------------------
 # API
-
+# ---------------------------------------------------------------------------
 @app.route('/api/complaints')
 @login_required
 def api_complaints():
@@ -370,6 +547,7 @@ def api_complaints():
 
     return jsonify([{
         'id': c.id,
+        'tracking_id': c.tracking_id,
         'title': c.title,
         'category': c.category,
         'priority': c.priority,
@@ -379,8 +557,9 @@ def api_complaints():
     } for c in query.all()])
 
 
+# ---------------------------------------------------------------------------
 # Error handlers and template context
-
+# ---------------------------------------------------------------------------
 @app.errorhandler(CSRFError)
 def csrf_error(error):
     flash('Your session expired or the form was invalid. Please try again.', 'danger')
@@ -403,8 +582,9 @@ def inject_now():
     return {'now': utcnow()}
 
 
+# ---------------------------------------------------------------------------
 # Start-up
-
+# ---------------------------------------------------------------------------
 def create_default_admin():
     """Create the first admin. The password comes from ADMIN_PASSWORD or is generated once."""
     if User.query.filter_by(username='admin').first():

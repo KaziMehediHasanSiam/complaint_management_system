@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import priority_badge, status_badge %}
+{% from "_macros.html" import priority_badge, status_badge, sla_badge %}
 
 {% block title %}Respond to Complaint - Complaint Desk{% endblock %}
 
@@ -24,6 +24,7 @@
                 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                     {{ priority_badge(complaint.priority) }}
                     {{ status_badge(complaint.status) }}
+                    {{ sla_badge(complaint) }}
                     <span class="text-muted small">{{ complaint.category }}</span>
                 </div>
                 <div class="desc-box prewrap">{{ complaint.description }}</div>
